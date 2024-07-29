@@ -3,10 +3,7 @@ package com.arbi.redis;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.redis.core.ListOperations;
-import org.springframework.data.redis.core.SetOperations;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.*;
 
 import java.time.Duration;
 import java.util.Set;
@@ -22,7 +19,7 @@ public class RedisTest {
     private StringRedisTemplate redisTemplate;
 
     @Test
-    void TestRedisTemplate() {
+    void testRedisTemplate() {
         assertNotNull(redisTemplate);
     }
 
@@ -64,5 +61,18 @@ public class RedisTest {
         Set<String> students = operations.members("students");
         assertEquals(3, students.size());
         assertThat(students, hasItems("Arbi", "Dwi", "Wijaya"));
+    }
+
+    @Test
+    void zSet() {
+        ZSetOperations<String, String> operations = redisTemplate.opsForZSet();
+
+        operations.add("score", "Arbi", 100);
+        operations.add("score", "Maki", 90);
+        operations.add("score", "Katsuki", 95);
+
+        assertEquals("Arbi", operations.popMax("score").getValue());
+        assertEquals("Katsuki", operations.popMax("score").getValue());
+        assertEquals("Maki", operations.popMax("score").getValue());
     }
 }
