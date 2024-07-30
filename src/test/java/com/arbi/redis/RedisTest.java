@@ -6,6 +6,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.*;
 
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.*;
@@ -74,5 +76,26 @@ public class RedisTest {
         assertEquals("Arbi", operations.popMax("score").getValue());
         assertEquals("Katsuki", operations.popMax("score").getValue());
         assertEquals("Maki", operations.popMax("score").getValue());
+    }
+
+    @Test
+    void hash() {
+        HashOperations<String, Object, Object> operations = redisTemplate.opsForHash();
+
+//        operations.put("user:1", "id", "1");
+//        operations.put("user:1", "name", "Arbi");
+//        operations.put("user:1", "email", "arbi@example.com");
+
+        Map<Object, Object> map = new HashMap<>();
+        map.put("id", "1");
+        map.put("name", "Arbi");
+        map.put("email", "arbi@example.com");
+        operations.putAll("user:1", map);
+
+        assertEquals("1", operations.get("user:1", "id"));
+        assertEquals("Arbi", operations.get("user:1", "name"));
+        assertEquals("arbi@example.com", operations.get("user:1", "email"));
+
+        redisTemplate.delete("user:1");
     }
 }
