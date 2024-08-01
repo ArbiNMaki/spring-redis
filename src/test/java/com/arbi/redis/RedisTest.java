@@ -10,6 +10,7 @@ import org.springframework.data.redis.core.*;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -159,5 +160,24 @@ public class RedisTest {
 
         assertEquals("Arbi", redisTemplate.opsForValue().get("test1"));
         assertEquals("Kalista", redisTemplate.opsForValue().get("test2"));
+    }
+
+    @Test
+    void pipeline() {
+        List<Object> list = redisTemplate.executePipelined(new SessionCallback<Object>() {
+            @Override
+            public Object execute(RedisOperations operations) throws DataAccessException {
+                operations.opsForValue().set("test1", "Arbi", Duration.ofSeconds(2));
+                operations.opsForValue().set("test2", "Katsuki", Duration.ofSeconds(2));
+                operations.opsForValue().set("test3", "Maki", Duration.ofSeconds(2));
+                operations.opsForValue().set("test4", "Kalista", Duration.ofSeconds(2));
+
+                return null;
+            }
+        });
+
+        assertThat(list, hasSize(4));
+        assertThat(list, hasItem(true));
+        assertThat(list, not(hasItem(false)));
     }
 }
