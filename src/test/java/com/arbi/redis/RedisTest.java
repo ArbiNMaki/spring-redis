@@ -129,4 +129,15 @@ public class RedisTest {
                         .getContent()
                         .getName());
     }
+
+    @Test
+    void hyperLogLog() {
+        HyperLogLogOperations<String, String> operations = redisTemplate.opsForHyperLogLog();
+
+        operations.add("traffics", "arbi", "dwi", "wijaya");
+        operations.add("traffics", "arbi", "katsuki", "maki");
+        operations.add("traffics", "katsuki", "maki", "kalista");
+
+        assertEquals(6L, operations.size("traffics"));
+    }
 }
