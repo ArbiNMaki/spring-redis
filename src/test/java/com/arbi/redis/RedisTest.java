@@ -3,14 +3,15 @@ package com.arbi.redis;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.geo.*;
+import org.springframework.data.redis.RedisSystemException;
 import org.springframework.data.redis.connection.RedisGeoCommands;
+import org.springframework.data.redis.connection.stream.*;
 import org.springframework.data.redis.core.*;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -128,5 +129,85 @@ public class RedisTest {
                         .get(1)
                         .getContent()
                         .getName());
+    }
+
+    @Test
+    void hyperLogLog() {
+        HyperLogLogOperations<String, String> operations = redisTemplate.opsForHyperLogLog();
+
+        operations.add("traffics", "arbi", "dwi", "wijaya");
+        operations.add("traffics", "arbi", "katsuki", "maki");
+        operations.add("traffics", "katsuki", "maki", "kalista");
+
+        assertEquals(6L, operations.size("traffics"));
+    }
+
+    @Test
+    void transaction() {
+        redisTemplate.execute(new SessionCallback<Object>() {
+            @Override
+            public Object execute(RedisOperations operations) throws DataAccessException {
+                operations.multi();
+
+                operations.opsForValue().set("test1", "Arbi", Duration.ofSeconds(2));
+                operations.opsForValue().set("test2", "Kalista", Duration.ofSeconds(2));
+
+                operations.exec();
+                return null;
+            }
+        });
+
+        assertEquals("Arbi", redisTemplate.opsForValue().get("test1"));
+        assertEquals("Kalista", redisTemplate.opsForValue().get("test2"));
+    }
+
+    @Test
+    void pipeline() {
+        List<Object> list = redisTemplate.executePipelined(new SessionCallback<Object>() {
+            @Override
+            public Object execute(RedisOperations operations) throws DataAccessException {
+                operations.opsForValue().set("test1", "Arbi", Duration.ofSeconds(2));
+                operations.opsForValue().set("test2", "Katsuki", Duration.ofSeconds(2));
+                operations.opsForValue().set("test3", "Maki", Duration.ofSeconds(2));
+                operations.opsForValue().set("test4", "Kalista", Duration.ofSeconds(2));
+
+                return null;
+            }
+        });
+
+        assertThat(list, hasSize(4));
+        assertThat(list, hasItem(true));
+        assertThat(list, not(hasItem(false)));
+    }
+
+    @Test
+    void publishStream() {
+        var operations = redisTemplate.opsForStream();
+        var record = MapRecord.create("stream-1", Map.of(
+                "name", "Arbi Dwi Wijaya",
+                "address", "Indonesia"
+        ));
+
+        for (int i = 0; i < 10; i++) {
+            operations.add(record);
+        }
+    }
+
+    @Test
+    void subscribeStream() {
+        var operations = redisTemplate.opsForStream();
+
+        try {
+            operations.createGroup("stream-1", "sample-group");
+        } catch (RedisSystemException exception) {
+            // group already exists
+        }
+
+        List<MapRecord<String, Object, Object>> records = operations.read(Consumer.from("sample-group", "sample-1"),
+                StreamOffset.create("stream-1", ReadOffset.lastConsumed()));
+
+        for (MapRecord<String, Object, Object> record : records) {
+            System.out.println(record);
+        }
     }
 }
