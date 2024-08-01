@@ -5,14 +5,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.geo.*;
+import org.springframework.data.redis.RedisSystemException;
 import org.springframework.data.redis.connection.RedisGeoCommands;
+import org.springframework.data.redis.connection.stream.*;
 import org.springframework.data.redis.core.*;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.hamcrest.MatcherAssert.*;
 import static org.hamcrest.Matchers.*;
@@ -179,5 +178,36 @@ public class RedisTest {
         assertThat(list, hasSize(4));
         assertThat(list, hasItem(true));
         assertThat(list, not(hasItem(false)));
+    }
+
+    @Test
+    void publishStream() {
+        var operations = redisTemplate.opsForStream();
+        var record = MapRecord.create("stream-1", Map.of(
+                "name", "Arbi Dwi Wijaya",
+                "address", "Indonesia"
+        ));
+
+        for (int i = 0; i < 10; i++) {
+            operations.add(record);
+        }
+    }
+
+    @Test
+    void subscribeStream() {
+        var operations = redisTemplate.opsForStream();
+
+        try {
+            operations.createGroup("stream-1", "sample-group");
+        } catch (RedisSystemException exception) {
+            // group already exists
+        }
+
+        List<MapRecord<String, Object, Object>> records = operations.read(Consumer.from("sample-group", "sample-1"),
+                StreamOffset.create("stream-1", ReadOffset.lastConsumed()));
+
+        for (MapRecord<String, Object, Object> record : records) {
+            System.out.println(record);
+        }
     }
 }
