@@ -227,4 +227,8 @@ public class RedisTest {
             redisTemplate.convertAndSend("my-channel", "Hello World : " + i);
         }
     }
+
+    @Test
+    void name() {
+    }
 }
