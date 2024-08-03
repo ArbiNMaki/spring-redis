@@ -3,12 +3,15 @@ package com.arbi.redis;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.geo.*;
 import org.springframework.data.redis.RedisSystemException;
-import org.springframework.data.redis.connection.RedisGeoCommands;
+import org.springframework.data.redis.connection.*;
 import org.springframework.data.redis.connection.stream.*;
 import org.springframework.data.redis.core.*;
+import org.springframework.data.redis.support.collections.*;
 
 import java.time.Duration;
 import java.util.*;
@@ -22,6 +25,15 @@ public class RedisTest {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private CacheManager cacheManager;
+
+    @Autowired
+    private ProductService productService;
 
     @Test
     void testRedisTemplate() {
@@ -209,5 +221,165 @@ public class RedisTest {
         for (MapRecord<String, Object, Object> record : records) {
             System.out.println(record);
         }
+    }
+
+    @Test
+    void pubSub() {
+        redisTemplate.getConnectionFactory().getConnection().subscribe(new MessageListener() {
+            @Override
+            public void onMessage(Message message, byte[] pattern) {
+                String event = new String(message.getBody());
+                System.out.println("Receive message : " + event);
+            }
+        }, "my-channel".getBytes());
+
+        for (int i = 0; i < 10; i++) {
+            redisTemplate.convertAndSend("my-channel", "Hello World : " + i);
+        }
+    }
+
+    @Test
+    void redisList() {
+        List<String> list = RedisList.create("names", redisTemplate);
+        list.add("Arbi");
+        list.add("Dwi");
+        list.add("Wijaya");
+        assertThat(list, hasItems("Arbi", "Dwi", "Wijaya"));
+
+        List<String> result = redisTemplate
+                .opsForList()
+                .range("names", 0, -1);
+
+        assertThat(result, hasItems("Arbi", "Dwi", "Wijaya"));
+    }
+
+    @Test
+    void redisSet() {
+        Set<String> set = RedisSet.create("traffic", redisTemplate);
+        set.addAll(Set.of("arbi", "dwi", "wijaya"));
+        set.addAll(Set.of("arbi", "katsuki", "maki"));
+        assertThat(set, hasItems("arbi", "dwi", "wijaya", "katsuki", "maki"));
+
+        Set<String> members = redisTemplate.opsForSet().members("traffic");
+        assertThat(members, hasItems("arbi", "dwi", "wijaya", "katsuki", "maki"));
+    }
+
+    @Test
+    void redisZSet() {
+        RedisZSet<String> zset = RedisZSet.create("winner", redisTemplate);
+        zset.add("Arbi", 100);
+        zset.add("Katsuki", 95);
+        zset.add("Maki", 90);
+        assertThat(zset, hasItems("Arbi", "Katsuki", "Maki"));
+
+        Set<String> members = redisTemplate.opsForZSet().range("winner", 0, -1);
+        assertThat(members, hasItems("Arbi", "Katsuki", "Maki"));
+
+        assertEquals("Arbi", zset.popLast());
+        assertEquals("Katsuki", zset.popLast());
+        assertEquals("Maki", zset.popLast());
+    }
+
+    @Test
+    void redisMap() {
+        Map<String, String> map = new DefaultRedisMap<>("user:1", redisTemplate);
+        map.put("name", "Arbi");
+        map.put("address", "Indonesia");
+        assertThat(map, hasEntry("name", "Arbi"));
+        assertThat(map, hasEntry("address", "Indonesia"));
+
+        Map<Object, Object> user = redisTemplate.opsForHash().entries("user:1");
+        assertThat(user, hasEntry("name", "Arbi"));
+        assertThat(user, hasEntry("address", "Indonesia"));
+    }
+
+    @Test
+    void repository() {
+        Product product = Product.builder()
+                .id("1")
+                .name("Mie Ayam Jakarta")
+                .price(20_000L)
+                .build();
+        productRepository.save(product);
+
+        Map<Object, Object> map = redisTemplate
+                .opsForHash()
+                .entries("products:1");
+        assertEquals(product.getId(), map.get("id"));
+        assertEquals(product.getName(), map.get("name"));
+        assertEquals(product.getPrice().toString(), map.get("price"));
+
+        Product product2 = productRepository.findById("1").get();
+        assertEquals(product, product2);
+    }
+
+    @Test
+    void ttl() throws InterruptedException {
+        Product product = Product.builder()
+                .id("1")
+                .name("Mie Ayam Jakarta")
+                .price(20_000L)
+                .ttl(3L)
+                .build();
+        productRepository.save(product);
+
+        assertTrue(productRepository.findById("1").isPresent());
+        Thread.sleep(Duration.ofSeconds(5));
+
+        assertFalse(productRepository.findById("1").isPresent());
+    }
+
+    @Test
+    void cache() {
+        Cache sample = cacheManager.getCache("scores");
+        sample.put("Arbi", 100);
+        sample.put("Katsuki", 95);
+        sample.put("Maki", 90);
+
+        assertEquals(100, sample.get("Arbi", Integer.class));
+        assertEquals(95, sample.get("Katsuki", Integer.class));
+        assertEquals(90, sample.get("Maki", Integer.class));
+
+        sample.evict("Arbi");
+        sample.evict("Katsuki");
+        sample.evict("Maki");
+        assertNull(sample.get("Arbi", Integer.class));
+        assertNull(sample.get("Katsuki", Integer.class));
+        assertNull(sample.get("Maki", Integer.class));
+    }
+
+    @Test
+    void cacheableFindProduct() {
+        Product product = productService.getProduct("P-001");
+
+        assertNotNull(product);
+        assertEquals("P-001", product.getId());
+        assertEquals("Sample", product.getName());
+
+        Product product2 = productService.getProduct("P-001");
+        assertEquals(product, product2);
+    }
+
+    @Test
+    void cacheableSaveProduct() {
+        Product product = Product.builder()
+                .id("P002")
+                .name("Sample")
+                .build();
+        productService.save(product);
+
+        Product product2 = productService.getProduct("P002");
+        assertEquals(product, product2);
+    }
+
+    @Test
+    void cacheableRemoveProduct() {
+        Product product = productService.getProduct("P003");
+        assertNotNull(product);
+
+        productService.remove("P003");
+
+        Product product2 = productService.getProduct("P003");
+        assertEquals(product, product2);
     }
 }
