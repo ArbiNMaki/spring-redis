@@ -11,6 +11,10 @@ import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.connection.stream.*;
 import org.springframework.data.redis.core.*;
+import org.springframework.data.redis.support.collections.DefaultRedisMap;
+import org.springframework.data.redis.support.collections.RedisList;
+import org.springframework.data.redis.support.collections.RedisSet;
+import org.springframework.data.redis.support.collections.RedisZSet;
 
 import java.time.Duration;
 import java.util.*;
@@ -229,6 +233,57 @@ public class RedisTest {
     }
 
     @Test
-    void name() {
+    void redisList() {
+        List<String> list = RedisList.create("names", redisTemplate);
+        list.add("Arbi");
+        list.add("Dwi");
+        list.add("Wijaya");
+        assertThat(list, hasItems("Arbi", "Dwi", "Wijaya"));
+
+        List<String> result = redisTemplate
+                .opsForList()
+                .range("names", 0, -1);
+
+        assertThat(result, hasItems("Arbi", "Dwi", "Wijaya"));
+    }
+
+    @Test
+    void redisSet() {
+        Set<String> set = RedisSet.create("traffic", redisTemplate);
+        set.addAll(Set.of("arbi", "dwi", "wijaya"));
+        set.addAll(Set.of("arbi", "katsuki", "maki"));
+        assertThat(set, hasItems("arbi", "dwi", "wijaya", "katsuki", "maki"));
+
+        Set<String> members = redisTemplate.opsForSet().members("traffic");
+        assertThat(members, hasItems("arbi", "dwi", "wijaya", "katsuki", "maki"));
+    }
+
+    @Test
+    void redisZSet() {
+        RedisZSet<String> zset = RedisZSet.create("winner", redisTemplate);
+        zset.add("Arbi", 100);
+        zset.add("Katsuki", 95);
+        zset.add("Maki", 90);
+        assertThat(zset, hasItems("Arbi", "Katsuki", "Maki"));
+
+        Set<String> members = redisTemplate.opsForZSet().range("winner", 0, -1);
+        assertThat(members, hasItems("Arbi", "Katsuki", "Maki"));
+
+        assertEquals("Arbi", zset.popLast());
+        assertEquals("Katsuki", zset.popLast());
+        assertEquals("Maki", zset.popLast());
+    }
+
+    @Test
+    void redisMap() {
+        Map<String, String> map = new DefaultRedisMap<>("user:1", redisTemplate);
+        map.put("name", "Arbi");
+        map.put("address", "Indonesia");
+        assertThat(map, hasEntry("name", "Arbi"));
+        assertThat(map, hasEntry("address", "Indonesia"));
+
+        Map<Object, Object> user = redisTemplate.opsForHash().entries("user:1");
+        assertThat(user, hasEntry("name", "Arbi"));
+        assertThat(user, hasEntry("address", "Indonesia"));
     }
 }
