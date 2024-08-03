@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.stream.Consumer;
@@ -11,6 +12,9 @@ import org.springframework.data.redis.connection.stream.ObjectRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.data.redis.stream.Subscription;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -20,10 +24,21 @@ import java.time.Duration;
 @SpringBootApplication
 @Slf4j
 @EnableScheduling
+@EnableRedisRepositories
+@EnableCaching
 public class SpringRedisApplication {
 
 	@Autowired
 	private StringRedisTemplate redisTemplate;
+
+	@Bean
+	public RedisMessageListenerContainer messageListenerContainer(RedisConnectionFactory connectionFactory,
+																  CustomerListener customerListener) {
+		var container = new RedisMessageListenerContainer();
+		container.setConnectionFactory(connectionFactory);
+		container.addMessageListener(customerListener, new ChannelTopic("customers"));
+		return container;
+	}
 
 	@Bean
 	public Subscription orderSubscription(StreamMessageListenerContainer<String, ObjectRecord<String, Order>> orderContainer,
