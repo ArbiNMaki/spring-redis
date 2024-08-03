@@ -32,6 +32,9 @@ public class RedisTest {
     @Autowired
     private CacheManager cacheManager;
 
+    @Autowired
+    private ProductService productService;
+
     @Test
     void testRedisTemplate() {
         assertNotNull(redisTemplate);
@@ -343,5 +346,40 @@ public class RedisTest {
         assertNull(sample.get("Arbi", Integer.class));
         assertNull(sample.get("Katsuki", Integer.class));
         assertNull(sample.get("Maki", Integer.class));
+    }
+
+    @Test
+    void cacheableFindProduct() {
+        Product product = productService.getProduct("P-001");
+
+        assertNotNull(product);
+        assertEquals("P-001", product.getId());
+        assertEquals("Sample", product.getName());
+
+        Product product2 = productService.getProduct("P-001");
+        assertEquals(product, product2);
+    }
+
+    @Test
+    void cacheableSaveProduct() {
+        Product product = Product.builder()
+                .id("P002")
+                .name("Sample")
+                .build();
+        productService.save(product);
+
+        Product product2 = productService.getProduct("P002");
+        assertEquals(product, product2);
+    }
+
+    @Test
+    void cacheableRemoveProduct() {
+        Product product = productService.getProduct("P003");
+        assertNotNull(product);
+
+        productService.remove("P003");
+
+        Product product2 = productService.getProduct("P003");
+        assertEquals(product, product2);
     }
 }
