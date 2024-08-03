@@ -6,15 +6,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.geo.*;
 import org.springframework.data.redis.RedisSystemException;
-import org.springframework.data.redis.connection.Message;
-import org.springframework.data.redis.connection.MessageListener;
-import org.springframework.data.redis.connection.RedisGeoCommands;
+import org.springframework.data.redis.connection.*;
 import org.springframework.data.redis.connection.stream.*;
 import org.springframework.data.redis.core.*;
-import org.springframework.data.redis.support.collections.DefaultRedisMap;
-import org.springframework.data.redis.support.collections.RedisList;
-import org.springframework.data.redis.support.collections.RedisSet;
-import org.springframework.data.redis.support.collections.RedisZSet;
+import org.springframework.data.redis.support.collections.*;
 
 import java.time.Duration;
 import java.util.*;
@@ -308,5 +303,21 @@ public class RedisTest {
 
         Product product2 = productRepository.findById("1").get();
         assertEquals(product, product2);
+    }
+
+    @Test
+    void ttl() throws InterruptedException {
+        Product product = Product.builder()
+                .id("1")
+                .name("Mie Ayam Jakarta")
+                .price(20_000L)
+                .ttl(3L)
+                .build();
+        productRepository.save(product);
+
+        assertTrue(productRepository.findById("1").isPresent());
+        Thread.sleep(Duration.ofSeconds(5));
+
+        assertFalse(productRepository.findById("1").isPresent());
     }
 }

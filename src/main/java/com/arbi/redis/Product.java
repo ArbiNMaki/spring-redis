@@ -3,6 +3,9 @@ package com.arbi.redis;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.keyvalue.annotation.KeySpace;
+import org.springframework.data.redis.core.TimeToLive;
+
+import java.util.concurrent.TimeUnit;
 
 @Data
 @AllArgsConstructor
@@ -17,4 +20,7 @@ public class Product {
     private String name;
 
     private Long price;
+
+    @TimeToLive(unit = TimeUnit.SECONDS)
+    private Long ttl = -1L;
 }
