@@ -29,6 +29,9 @@ public class RedisTest {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
+    @Autowired
+    private ProductRepository productRepository;
+
     @Test
     void testRedisTemplate() {
         assertNotNull(redisTemplate);
@@ -285,5 +288,25 @@ public class RedisTest {
         Map<Object, Object> user = redisTemplate.opsForHash().entries("user:1");
         assertThat(user, hasEntry("name", "Arbi"));
         assertThat(user, hasEntry("address", "Indonesia"));
+    }
+
+    @Test
+    void repository() {
+        Product product = Product.builder()
+                .id("1")
+                .name("Mie Ayam Jakarta")
+                .price(20_000L)
+                .build();
+        productRepository.save(product);
+
+        Map<Object, Object> map = redisTemplate
+                .opsForHash()
+                .entries("products:1");
+        assertEquals(product.getId(), map.get("id"));
+        assertEquals(product.getName(), map.get("name"));
+        assertEquals(product.getPrice().toString(), map.get("price"));
+
+        Product product2 = productRepository.findById("1").get();
+        assertEquals(product, product2);
     }
 }
